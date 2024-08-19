@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
+	"strings"
 )
 
 // How to use goargs
@@ -33,24 +35,26 @@ func main() {
 		}
 
 		if err == io.EOF {
-			fmt.Println("All lines are processed.")
 			os.Exit(0)
 		}
-
-		// Print the input read from stdin
-		fmt.Println("Line:", input)
 
 		execCmd(cmd, args, input[:len(input)-1])
 	}
 }
 
 func execCmd(cmd string, args []string, input string) {
-	fmt.Printf("cmd={%s}, input={%s}\n", cmd, input)
-
 	// Compile the regular expression
 	re := regexp.MustCompile(`:\d+`)
 
-	if re.MatchString(cmd) {
+	var hasArgs bool
+	for _, arg := range args {
+		if re.MatchString(arg) {
+			hasArgs = true
+			break
+		}
+	}
+
+	if hasArgs {
 		execCmdWithArgs(cmd, args, input)
 	} else {
 		execSimpleCmd(cmd, args, input)
@@ -58,15 +62,60 @@ func execCmd(cmd string, args []string, input string) {
 }
 
 func execCmdWithArgs(cmd string, args []string, input string) {
+	str := strings.Join(args, " ")
+	values := strings.Split(input, " ")
 
+	x := replacePlaceholders(str, values)
+	newArgs := strings.Split(x, " ")
+
+	runCommand(cmd, newArgs)
+}
+
+func replacePlaceholders(str string, values []string) string {
+	// Compile the regular expression
+	re := regexp.MustCompile(`:(\d)`)
+
+	// Find all matches and their submatches
+	matches := re.FindAllStringSubmatchIndex(str, -1)
+
+	// Create a result string builder
+	var result string
+	lastIndex := 0
+
+	for _, match := range matches {
+		if len(match) == 4 {
+			// Append the part of the input string before the match
+			result += str[lastIndex:match[0]]
+
+			// Convert the matched group to an integer
+			index, err := strconv.Atoi(str[match[2]:match[3]])
+			if err != nil {
+				continue
+			}
+
+			// Replace the placeholder with the corresponding value
+			if index > 0 && index <= len(values) {
+				result += values[index-1]
+			}
+
+			// Update the last index to the end of the current match
+			lastIndex = match[1]
+		}
+	}
+
+	// Append the remaining part of the input string
+	result += str[lastIndex:]
+
+	return result
 }
 
 func execSimpleCmd(cmd string, args []string, input string) {
-	// simpleCmd := cmd + " " + input
-	// fmt.Println("Simple command:", simpleCmd)
-
 	args = append(args, input)
 
+	runCommand(cmd, args)
+}
+
+func runCommand(cmd string, args []string) {
 	command := exec.Command(cmd, args...)
 	output, err := command.Output()
 	if err != nil {
@@ -74,5 +123,5 @@ func execSimpleCmd(cmd string, args []string, input string) {
 		os.Exit(1)
 	}
 
-	fmt.Println(string(output))
+	fmt.Print(string(output))
 }
