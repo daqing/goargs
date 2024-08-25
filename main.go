@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -25,20 +24,16 @@ func main() {
 	cmd := os.Args[1]
 	args := os.Args[2:]
 
-	reader := bufio.NewReader(os.Stdin)
+	scanner := bufio.NewScanner(os.Stdin)
 	// Read all input from stdin
-	for {
-		input, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			fmt.Println("Error reading from stdin:", err)
-			os.Exit(1)
-		}
+	for scanner.Scan() {
+		input := scanner.Text()
+		execCmd(cmd, args, input)
+	}
 
-		if err == io.EOF {
-			os.Exit(0)
-		}
-
-		execCmd(cmd, args, input[:len(input)-1])
+	if err := scanner.Err(); err != nil {
+		// fmt.Println("Error reading from stdin:", err)
+		os.Exit(1)
 	}
 }
 
