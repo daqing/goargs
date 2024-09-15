@@ -14,6 +14,11 @@ import (
 // find . -name '*.go' | goargs wc -l
 // find . -name '*.go' | goargs mv :1 :1.bak
 // find . -name '*.go' | awk -F/ '{print $1, $2}' | goargs cat :1/:2
+//
+// For file name with space, we set :0 to the file name
+// so:
+// echo Frame 123.svg | goargs mv :0 :2
+// will rename "Frame 123.svg" to "123.svg"
 func main() {
 	// read command from args
 	if len(os.Args) == 1 {
@@ -37,69 +42,99 @@ func main() {
 	}
 }
 
+// Input examples:
+// foo.go
+// Frame 123.svg
+//
+// args examples:
+// []string{":0", ":1.bak"}
+// []string{":1", ":2"}
 func execCmd(cmd string, args []string, input string) {
 	// Compile the regular expression
 	re := regexp.MustCompile(`:\d+`)
 
-	var hasArgs bool
+	var hasPlaceholder bool
 	for _, arg := range args {
 		if re.MatchString(arg) {
-			hasArgs = true
+			hasPlaceholder = true
 			break
 		}
 	}
 
-	if hasArgs {
-		execCmdWithArgs(cmd, args, input)
+	// if input has placeholder, we need to replace it with the input
+	if hasPlaceholder {
+		execCmdWithPlaceholders(cmd, args, input)
 	} else {
 		execSimpleCmd(cmd, args, input)
 	}
 }
 
-func execCmdWithArgs(cmd string, args []string, input string) {
+func execCmdWithPlaceholders(cmd string, args []string, input string) {
 	str := strings.Join(args, " ")
-	values := strings.Split(input, " ")
 
-	x := replacePlaceholders(str, values)
-	newArgs := strings.Split(x, " ")
-
-	runCommand(cmd, newArgs)
+	runCommand(cmd, replacePlaceholders(str, input))
 }
 
-func replacePlaceholders(str string, values []string) string {
+// given str as "mv :0 :2.bak", and input as "Frame 123.svg"
+// then the result returned is:
+// []string{"mv", "Frame\\ 123.svg", "123.svg.bak"}
+func replacePlaceholders(str string, input string) []string {
 	// Compile the regular expression
 	re := regexp.MustCompile(`:(\d)`)
 
-	// Find all matches and their submatches
-	matches := re.FindAllStringSubmatchIndex(str, -1)
+	// Split the input string into arguments
+	args := strings.Split(str, " ")
 
-	// Create a result string builder
-	var result string
-	lastIndex := 0
+	// Split the input string into values
+	values := strings.Split(input, " ")
 
-	for _, match := range matches {
-		if len(match) == 4 {
-			// Append the part of the input string before the match
-			result += str[lastIndex:match[0]]
+	// Create a result slice to store the replaced arguments
+	result := make([]string, 0, len(args))
 
-			// Convert the matched group to an integer
-			index, err := strconv.Atoi(str[match[2]:match[3]])
-			if err != nil {
-				continue
-			}
+	for _, arg := range args {
+		// Find all matches in the current argument
+		matches := re.FindAllStringSubmatchIndex(arg, -1)
 
-			// Replace the placeholder with the corresponding value
-			if index > 0 && index <= len(values) {
-				result += values[index-1]
-			}
-
-			// Update the last index to the end of the current match
-			lastIndex = match[1]
+		if len(matches) == 0 {
+			// If no placeholders found, add the argument as is
+			result = append(result, arg)
+			continue
 		}
-	}
 
-	// Append the remaining part of the input string
-	result += str[lastIndex:]
+		// Create a new string builder for the current argument
+		var newArg strings.Builder
+		lastIndex := 0
+
+		for _, match := range matches {
+			if len(match) == 4 {
+				// Append the part of the argument before the match
+				newArg.WriteString(arg[lastIndex:match[0]])
+
+				// Convert the matched group to an integer
+				index, err := strconv.Atoi(arg[match[2]:match[3]])
+				if err != nil {
+					continue
+				}
+
+				// Replace the placeholder with the corresponding value
+				if index == 0 {
+					// for :0, use the whole input
+					newArg.WriteString(input)
+				} else if index > 0 && index <= len(values) {
+					newArg.WriteString(values[index-1])
+				}
+
+				// Update the last index to the end of the current match
+				lastIndex = match[1]
+			}
+		}
+
+		// Append the remaining part of the argument
+		newArg.WriteString(arg[lastIndex:])
+
+		// Add the processed argument to the result
+		result = append(result, newArg.String())
+	}
 
 	return result
 }
@@ -111,10 +146,12 @@ func execSimpleCmd(cmd string, args []string, input string) {
 }
 
 func runCommand(cmd string, args []string) {
+	// fmt.Printf("cmd=%s, args=%v \n", cmd, args)
+
 	command := exec.Command(cmd, args...)
 	output, err := command.Output()
 	if err != nil {
-		fmt.Println("Error executing command:", err)
+		fmt.Printf("Error: %s, output: %v\n", err, output)
 		os.Exit(1)
 	}
 
