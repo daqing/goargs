@@ -6,7 +6,7 @@ import (
 )
 
 func TestReplace1(t *testing.T) {
-	str := "ls -l :1"
+	str := "ls -l :0"
 
 	result := strings.Join(
 		replacePlaceholders(str, "main.go"),
@@ -18,7 +18,7 @@ func TestReplace1(t *testing.T) {
 }
 
 func TestReplace2(t *testing.T) {
-	str := "mv :1 :1.bak"
+	str := "mv :0 :0.bak"
 
 	result := strings.Join(
 		replacePlaceholders(str, "main.go"),
@@ -30,7 +30,7 @@ func TestReplace2(t *testing.T) {
 }
 
 func TestReplace3(t *testing.T) {
-	str := "mv :2 :1.bak"
+	str := "mv :1 :0.bak"
 
 	result := strings.Join(
 		replacePlaceholders(str, "a b"),
@@ -42,7 +42,7 @@ func TestReplace3(t *testing.T) {
 }
 
 func TestReplace4(t *testing.T) {
-	str := "mv :0 :2.bak"
+	str := "mv :@ :1.bak"
 
 	result := strings.Join(
 		replacePlaceholders(str, "Frame 123.svg"),

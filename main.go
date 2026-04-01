@@ -12,18 +12,39 @@ import (
 
 // How to use goargs
 // find . -name '*.go' | goargs wc -l
-// find . -name '*.go' | goargs mv :1 :1.bak
-// find . -name '*.go' | awk -F/ '{print $1, $2}' | goargs cat :1/:2
+// find . -name '*.go' | goargs mv :0 :0.bak
+// find . -name '*.go' | awk -F/ '{print $1, $2}' | goargs cat :0/:1
 //
-// For file name with space, we set :0 to the file name
+// For file name with space, we use :@ to represent the whole line
 // so:
-// echo Frame 123.svg | goargs mv :0 :2
+// echo Frame 123.svg | goargs mv :@ :1
 // will rename "Frame 123.svg" to "123.svg"
+func printUsage() {
+	fmt.Println("Usage: goargs <command> [args...]")
+	fmt.Println("")
+	fmt.Println("goargs reads input from stdin and executes commands for each line.")
+	fmt.Println("")
+	fmt.Println("Placeholders:")
+	fmt.Println("  :0, :1, :2, ...   Reference fields split by whitespace (0-indexed).")
+	fmt.Println("                    For input 'foo bar help.zip': :0=foo, :1=bar, :2=help.zip")
+	fmt.Println("  :@                Reference the entire line (useful for filenames with spaces).")
+	fmt.Println("")
+	fmt.Println("Examples:")
+	fmt.Println("  find . -name '*.go' | goargs wc -l")
+	fmt.Println("  find . -name '*.go' | goargs mv :0 :0.bak")
+	fmt.Println("  echo 'Frame 123.svg' | goargs mv :@ :1   # renames to 123.svg")
+}
+
 func main() {
 	// read command from args
 	if len(os.Args) == 1 {
-		fmt.Println("Please provide a command")
-		os.Exit(1)
+		printUsage()
+		os.Exit(0)
+	}
+
+	if os.Args[1] == "-h" || os.Args[1] == "--help" {
+		printUsage()
+		os.Exit(0)
 	}
 
 	cmd := os.Args[1]
@@ -47,11 +68,11 @@ func main() {
 // Frame 123.svg
 //
 // args examples:
-// []string{":0", ":1.bak"}
-// []string{":1", ":2"}
+// []string{":@", ":1.bak"}
+// []string{":0", ":1"}
 func execCmd(cmd string, args []string, input string) {
-	// Compile the regular expression
-	re := regexp.MustCompile(`:\d+`)
+	// Compile the regular expression to match :@ or :0, :1, :2, etc.
+	re := regexp.MustCompile(`:(@|\d+)`)
 
 	var hasPlaceholder bool
 	for _, arg := range args {
@@ -75,12 +96,12 @@ func execCmdWithPlaceholders(cmd string, args []string, input string) {
 	runCommand(cmd, replacePlaceholders(str, input))
 }
 
-// given str as "mv :0 :2.bak", and input as "Frame 123.svg"
+// given str as "mv :@ :1.bak", and input as "Frame 123.svg"
 // then the result returned is:
-// []string{"mv", "Frame\\ 123.svg", "123.svg.bak"}
+// []string{"mv", "Frame 123.svg", "123.svg.bak"}
 func replacePlaceholders(str string, input string) []string {
-	// Compile the regular expression
-	re := regexp.MustCompile(`:(\d)`)
+	// Compile the regular expression to match :@ or :0, :1, :2, etc.
+	re := regexp.MustCompile(`:(@|\d)`)
 
 	// Split the input string into arguments
 	args := strings.Split(str, " ")
@@ -110,18 +131,23 @@ func replacePlaceholders(str string, input string) []string {
 				// Append the part of the argument before the match
 				newArg.WriteString(arg[lastIndex:match[0]])
 
-				// Convert the matched group to an integer
-				index, err := strconv.Atoi(arg[match[2]:match[3]])
-				if err != nil {
-					continue
-				}
+				// Get the matched placeholder (either "@" or a digit)
+				placeholder := arg[match[2]:match[3]]
 
 				// Replace the placeholder with the corresponding value
-				if index == 0 {
-					// for :0, use the whole input
+				if placeholder == "@" {
+					// for :@, use the whole input
 					newArg.WriteString(input)
-				} else if index > 0 && index <= len(values) {
-					newArg.WriteString(values[index-1])
+				} else {
+					// Convert the matched group to an integer
+					index, err := strconv.Atoi(placeholder)
+					if err != nil {
+						continue
+					}
+					// :0, :1, :2... are 0-indexed
+					if index >= 0 && index < len(values) {
+						newArg.WriteString(values[index])
+					}
 				}
 
 				// Update the last index to the end of the current match
