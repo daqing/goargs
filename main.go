@@ -19,6 +19,10 @@ import (
 // so:
 // echo Frame 123.svg | goargs mv :@ :1
 // will rename "Frame 123.svg" to "123.svg"
+//
+// Use -F to specify a custom field separator (like awk -F)
+// echo 'a.txt' | goargs -F. mv :@ :0.md
+// will rename "a.txt" to "a.md"
 func printUsage() {
 	fmt.Println("Usage: goargs [-F sep] <command> [args...]")
 	fmt.Println("")
@@ -36,7 +40,7 @@ func printUsage() {
 	fmt.Println("  find . -name '*.go' | goargs wc -l")
 	fmt.Println("  find . -name '*.go' | goargs mv :0 :0.bak")
 	fmt.Println("  echo 'Frame 123.svg' | goargs mv :@ :1   # renames to 123.svg")
-	fmt.Println("  echo 'a.txt' | goargs -F. mv :0 :0.md    # renames to a.md")
+	fmt.Println("  echo 'a.txt' | goargs -F. mv :@ :0.md    # renames to a.md")
 }
 
 func main() {
