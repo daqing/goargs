@@ -20,7 +20,7 @@ import (
 // echo Frame 123.svg | goargs mv :@ :1
 // will rename "Frame 123.svg" to "123.svg"
 func printUsage() {
-	fmt.Println("Usage: goargs <command> [args...]")
+	fmt.Println("Usage: goargs [-F sep] <command> [args...]")
 	fmt.Println("")
 	fmt.Println("goargs reads input from stdin and executes commands for each line.")
 	fmt.Println("")
@@ -29,10 +29,14 @@ func printUsage() {
 	fmt.Println("                    For input 'foo bar help.zip': :0=foo, :1=bar, :2=help.zip")
 	fmt.Println("  :@                Reference the entire line (useful for filenames with spaces).")
 	fmt.Println("")
+	fmt.Println("Options:")
+	fmt.Println("  -F sep            Use 'sep' as the field separator instead of whitespace.")
+	fmt.Println("")
 	fmt.Println("Examples:")
 	fmt.Println("  find . -name '*.go' | goargs wc -l")
 	fmt.Println("  find . -name '*.go' | goargs mv :0 :0.bak")
 	fmt.Println("  echo 'Frame 123.svg' | goargs mv :@ :1   # renames to 123.svg")
+	fmt.Println("  echo 'a.txt' | goargs -F. mv :0 :0.md    # renames to a.md")
 }
 
 func main() {
@@ -47,14 +51,32 @@ func main() {
 		os.Exit(0)
 	}
 
-	cmd := os.Args[1]
-	args := os.Args[2:]
+	sep := ""
+	cmdStart := 1
+
+	if strings.HasPrefix(os.Args[1], "-F") {
+		if len(os.Args[1]) > 2 {
+			sep = os.Args[1][2:]
+			cmdStart = 2
+		} else if len(os.Args) > 2 {
+			sep = os.Args[2]
+			cmdStart = 3
+		}
+	}
+
+	if len(os.Args) <= cmdStart {
+		printUsage()
+		os.Exit(0)
+	}
+
+	cmd := os.Args[cmdStart]
+	args := os.Args[cmdStart+1:]
 
 	scanner := bufio.NewScanner(os.Stdin)
 	// Read all input from stdin
 	for scanner.Scan() {
-		input := scanner.Text()
-		execCmd(cmd, args, input)
+		input := strings.TrimSpace(scanner.Text())
+		execCmd(cmd, args, input, sep)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -70,7 +92,7 @@ func main() {
 // args examples:
 // []string{":@", ":1.bak"}
 // []string{":0", ":1"}
-func execCmd(cmd string, args []string, input string) {
+func execCmd(cmd string, args []string, input string, sep string) {
 	// Compile the regular expression to match :@ or :0, :1, :2, etc.
 	re := regexp.MustCompile(`:(@|\d+)`)
 
@@ -84,22 +106,22 @@ func execCmd(cmd string, args []string, input string) {
 
 	// if input has placeholder, we need to replace it with the input
 	if hasPlaceholder {
-		execCmdWithPlaceholders(cmd, args, input)
+		execCmdWithPlaceholders(cmd, args, input, sep)
 	} else {
 		execSimpleCmd(cmd, args, input)
 	}
 }
 
-func execCmdWithPlaceholders(cmd string, args []string, input string) {
+func execCmdWithPlaceholders(cmd string, args []string, input string, sep string) {
 	str := strings.Join(args, " ")
 
-	runCommand(cmd, replacePlaceholders(str, input))
+	runCommand(cmd, replacePlaceholders(str, input, sep))
 }
 
 // given str as "mv :@ :1.bak", and input as "Frame 123.svg"
 // then the result returned is:
 // []string{"mv", "Frame 123.svg", "123.svg.bak"}
-func replacePlaceholders(str string, input string) []string {
+func replacePlaceholders(str string, input string, sep string) []string {
 	// Compile the regular expression to match :@ or :0, :1, :2, etc.
 	re := regexp.MustCompile(`:(@|\d+)`)
 
@@ -107,7 +129,12 @@ func replacePlaceholders(str string, input string) []string {
 	args := strings.Split(str, " ")
 
 	// Split the input string into values
-	values := strings.Fields(input)
+	var values []string
+	if sep == "" {
+		values = strings.Fields(input)
+	} else {
+		values = strings.Split(input, sep)
+	}
 
 	// Create a result slice to store the replaced arguments
 	result := make([]string, 0, len(args))

@@ -9,7 +9,7 @@ func TestReplace1(t *testing.T) {
 	str := "ls -l :0"
 
 	result := strings.Join(
-		replacePlaceholders(str, "main.go"),
+		replacePlaceholders(str, "main.go", ""),
 		" ")
 
 	if result != "ls -l main.go" {
@@ -21,7 +21,7 @@ func TestReplace2(t *testing.T) {
 	str := "mv :0 :0.bak"
 
 	result := strings.Join(
-		replacePlaceholders(str, "main.go"),
+		replacePlaceholders(str, "main.go", ""),
 		" ")
 
 	if result != "mv main.go main.go.bak" {
@@ -33,7 +33,7 @@ func TestReplace3(t *testing.T) {
 	str := "mv :1 :0.bak"
 
 	result := strings.Join(
-		replacePlaceholders(str, "a b"),
+		replacePlaceholders(str, "a b", ""),
 		" ")
 
 	if result != "mv b a.bak" {
@@ -45,10 +45,24 @@ func TestReplace4(t *testing.T) {
 	str := "mv :@ :1.bak"
 
 	result := strings.Join(
-		replacePlaceholders(str, "Frame 123.svg"),
+		replacePlaceholders(str, "Frame 123.svg", ""),
 		" ")
 
 	expected := "mv Frame 123.svg 123.svg.bak"
+
+	if result != expected {
+		t.Errorf("Expected: %s, got: %s", expected, result)
+	}
+}
+
+func TestReplace5(t *testing.T) {
+	str := "mv :@ :0.md"
+
+	result := strings.Join(
+		replacePlaceholders(str, "a.txt", "."),
+		" ")
+
+	expected := "mv a.txt a.md"
 
 	if result != expected {
 		t.Errorf("Expected: %s, got: %s", expected, result)
