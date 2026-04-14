@@ -101,13 +101,13 @@ func execCmdWithPlaceholders(cmd string, args []string, input string) {
 // []string{"mv", "Frame 123.svg", "123.svg.bak"}
 func replacePlaceholders(str string, input string) []string {
 	// Compile the regular expression to match :@ or :0, :1, :2, etc.
-	re := regexp.MustCompile(`:(@|\d)`)
+	re := regexp.MustCompile(`:(@|\d+)`)
 
 	// Split the input string into arguments
 	args := strings.Split(str, " ")
 
 	// Split the input string into values
-	values := strings.Split(input, " ")
+	values := strings.Fields(input)
 
 	// Create a result slice to store the replaced arguments
 	result := make([]string, 0, len(args))
@@ -175,9 +175,9 @@ func runCommand(cmd string, args []string) {
 	// fmt.Printf("cmd=%s, args=%v \n", cmd, args)
 
 	command := exec.Command(cmd, args...)
-	output, err := command.Output()
+	output, err := command.CombinedOutput()
 	if err != nil {
-		fmt.Printf("Error: %s, output: %v\n", err, output)
+		fmt.Printf("Error: %s\n%s", err, output)
 		os.Exit(1)
 	}
 
